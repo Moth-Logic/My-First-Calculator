@@ -1,0 +1,17 @@
+# Entorno virtual
+venv/
+env/
+
+# Artefactos de build de PyInstaller
+build/
+dist/
+*.spec.bak
+
+# Cache de Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Editores
+.vscode/
+.idea/
