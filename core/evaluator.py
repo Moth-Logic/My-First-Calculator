@@ -32,6 +32,10 @@ class Evaluator:
         "asin": lambda x: math.degrees(math.asin(x)),
         "acos": lambda x: math.degrees(math.acos(x)),
         "atan": lambda x: math.degrees(math.atan(x)),
+        # Hiperbólicas
+        "sinh": math.sinh,
+        "cosh": math.cosh,
+        "tanh": math.tanh,
         # Potencia / raíz
         "sqrt": math.sqrt,
         "cbrt": lambda x: math.copysign(abs(x) ** (1 / 3), x),
@@ -39,6 +43,10 @@ class Evaluator:
         # Logaritmos
         "log": math.log10,   # log base 10
         "ln": math.log,     # logaritmo natural
+        # Redondeo
+        "ceil": math.ceil,
+        "floor": math.floor,
+        "round": round,
         # Otros
         "abs": abs,
     }
@@ -87,4 +95,10 @@ class Evaluator:
             if right == 0:
                 raise EvaluationError("División entre cero")
             return left / right
+        if operator == TokenType.CARET:
+            try:
+                result = left ** right
+            except OverflowError:
+                raise EvaluationError("Resultado demasiado grande")
+            return result
         raise EvaluationError(f"Operador desconocido: {operator}")

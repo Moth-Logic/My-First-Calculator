@@ -10,7 +10,8 @@ Gramática (de menor a mayor precedencia):
 
     expression -> term ( ("+" | "-") term )*
     term       -> factor ( ("*" | "/") factor )*
-    factor     -> NUMBER | "(" expression ")" | ("-" | "+") factor
+    power      -> factor ("^" power)?
+    factor     -> NUMBER | FUNCTION "(" expression ")" | "(" expression ")" | ("-" | "+") factor
 
 Nota de diseño: el AST (Number, BinaryOp, UnaryOp) es el "contrato" entre
 el Parser y el Evaluator. El día que reemplacemos el Evaluator por una
@@ -85,12 +86,20 @@ class Parser:
             node = BinaryOp(node, op, self._term())
         return node
 
-    # term -> factor ( ("*" | "/") factor )*
+    # term -> power ( ("*" | "/") power )*
     def _term(self) -> ASTNode:
-        node = self._factor()
+        node = self._power()
         while self._current().type in (TokenType.STAR, TokenType.SLASH):
             op = self._advance().type
-            node = BinaryOp(node, op, self._factor())
+            node = BinaryOp(node, op, self._power())
+        return node
+
+    # power -> factor ("^" power)?  — right-associative (2^3^2 = 2^9)
+    def _power(self) -> ASTNode:
+        node = self._factor()
+        if self._current().type == TokenType.CARET:
+            self._advance()
+            node = BinaryOp(node, TokenType.CARET, self._power())
         return node
 
     # factor -> NUMBER | FUNCTION "(" expression ")" | "(" expression ")" | ("-" | "+") factor

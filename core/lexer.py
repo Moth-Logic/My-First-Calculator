@@ -23,6 +23,7 @@ class TokenType(Enum):
     RPAREN = auto()
     FUNCTION = auto()  # sin, cos, tan, etc.
     COMMA = auto()
+    CARET = auto()
     EOF = auto()
 
 
@@ -49,15 +50,22 @@ _SINGLE_CHAR_TOKENS = {
     "(": TokenType.LPAREN,
     ")": TokenType.RPAREN,
     ",": TokenType.COMMA,
+    "^": TokenType.CARET,
 }
 
 # Funciones científicas y constantes reconocidas por el lexer
 _SCIENTIFIC_FUNCTIONS = frozenset({
+    # Trigonométricas
     "sin", "cos", "tan",
     "asin", "acos", "atan",
+    # Hiperbólicas
+    "sinh", "cosh", "tanh",
+    # Potencia / raíz
     "sqrt", "cbrt",
+    # Logaritmos
     "log", "ln",
-    "abs", "exp",
+    # Otros
+    "abs", "exp", "ceil", "floor", "round",
 })
 
 _SCIENTIFIC_CONSTANTS = {
