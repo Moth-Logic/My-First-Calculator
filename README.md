@@ -1,9 +1,10 @@
 # My First Calculator
 
 Calculadora de escritorio con interfaz gráfica moderna, hecha en Python.
-Empieza simple (`+ - * /` con paréntesis) pero está diseñada para crecer
-con el tiempo — próximas entregas van a sumar funciones científicas,
-memoria, y piezas escritas en C++.
+Empieza simple (`+ - * /` con paréntesis) y hoy incluye funciones
+científicas completas (trig, log, potencias, hiperbólicas, redondeo).
+Está diseñada para seguir creciendo — próximas entregas van a sumar
+memoria, historial, y piezas escritas en C++.
 
 ---
 
@@ -100,22 +101,38 @@ Windows (la X de la esquina) para terminar el programa.
 ## 5. Cómo usar la calculadora
 
 - **Botones numéricos** (`0`-`9`) y **`.`** para decimales.
-- **Operadores**: `+`, `-`, `*`, `/`.
+- **Operadores**: `+`, `-`, `*`, `/`, `^` (potencia).
 - **Paréntesis** `(` `)`: para agrupar operaciones, ej. `(2 + 3) * 4`.
+- **Funciones científicas** (botones púrpura):
+  - Trigonométricas: `sin`, `cos`, `tan`, `asin`, `acos`, `atan`
+    (todas trabajan en **grados**).
+  - Hiperbólicas: `sinh`, `cosh`, `tanh` (trabajan en radianes).
+  - Raíces: `√` (raíz cuadrada).
+  - Logaritmos: `log` (base 10), `ln` (natural).
+  - Redondeo: `ceil`, `floor`, `round`.
+  - Otros: `abs` (valor absoluto).
+- **Constantes**: `π` (pi), `e` (euler).
 - **`=`**: evalúa la expresión completa y muestra el resultado.
 - **`C`**: borra todo (empezar de cero).
 - **`←`**: borra el último carácter escrito.
 - **Teclado físico**: todos los botones también funcionan con el
-  teclado — números, `+ - * / ( )`, `Enter` (=) y `Backspace` (←).
+  teclado — números, `+ - * / ( ) ^`, `Enter` (=) y `Backspace` (←).
 
 **Ejemplos de expresiones válidas:**
 
-| Escribís            | Resultado |
-|---------------------|-----------|
-| `2 + 3 * 4`          | `14`      |
-| `(2 + 3) * 4`        | `20`      |
-| `10 / 2 / 5`         | `1`       |
-| `2 * (3 + (4 - 1))`  | `12`      |
+| Escribís                      | Resultado |
+|-------------------------------|-----------|
+| `2 + 3 * 4`                   | `14`      |
+| `(2 + 3) * 4`                 | `20`      |
+| `10 / 2 / 5`                  | `1`       |
+| `2 * (3 + (4 - 1))`           | `12`      |
+| `2^10`                         | `1024`    |
+| `sin(30)`                      | `0.5`     |
+| `cos(60)`                      | `0.5`     |
+| `sqrt(16) + log(100)`          | `6`       |
+| `ceil(3.2) * floor(4.8)`      | `12`      |
+| `pi * 2`                       | `6.28...` |
+| `2^3^2`                        | `512`     |
 
 Si escribís algo inválido (ej. `5 / 0` o paréntesis sin cerrar), la
 pantalla muestra `Error` — apretá `C` y volvé a intentar.
@@ -215,10 +232,13 @@ excepción para `dist\MyFirstCalculator.exe` en Windows Defender.
 
 ## 9. Roadmap
 
-- [ ] Potencias (`^`) y módulo (`%`)
-- [ ] Funciones: `sqrt()`, `sin()`, `cos()`, `log()`
+- [x] Potencias (`^`) —右结合, precedencia sobre `*` y `/`
+- [x] Funciones científicas: `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `sinh`, `cosh`, `tanh`, `sqrt`, `cbrt`, `log`, `ln`, `abs`, `exp`, `ceil`, `floor`, `round`
+- [x] Constantes: `pi`, `e`
+- [x] Modo "científica" (filas de botones púrpura)
+- [ ] Operador módulo (`%`)
 - [ ] Historial de operaciones
-- [ ] Modo "científica" (segunda fila de botones)
 - [ ] Migrar `Evaluator` a C++ vía `pybind11`, benchmarking Python vs C++
 - [ ] Variables/memoria (`M+`, `M-`, `MR`) — requiere una tabla de símbolos
 - [ ] Números complejos / fracciones exactas (`Fraction` en vez de `float`)
+- [ ] Modo grados / radianes toggle para funciones trigonométricas
