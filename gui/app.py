@@ -20,6 +20,8 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 _BUTTON_LAYOUT = [
+    ["sin", "cos", "tan", "π"],
+    ["√", "log", "ln", "e"],
     ["(", ")", "C", "←"],
     ["7", "8", "9", "/"],
     ["4", "5", "6", "*"],
@@ -28,6 +30,18 @@ _BUTTON_LAYOUT = [
 ]
 
 _OPERATORS = {"/", "*", "-", "+"}
+
+# Mapeo de botones de la UI -> texto que se inserta en la expresión
+_BTN_TEXT = {
+    "sin": "sin(",
+    "cos": "cos(",
+    "tan": "tan(",
+    "√": "sqrt(",
+    "log": "log(",
+    "ln": "ln(",
+    "π": "pi",
+    "e": "e",
+}
 
 
 class CalculatorApp(ctk.CTk):
@@ -38,7 +52,7 @@ class CalculatorApp(ctk.CTk):
         self._expression = ""
 
         self.title("My First Calculator")
-        self.geometry("320x460")
+        self.geometry("320x560")
         self.resizable(False, False)
         self.grid_columnconfigure(0, weight=1)
 
@@ -86,6 +100,8 @@ class CalculatorApp(ctk.CTk):
             return "#2fa572"
         if label in ("C", "←"):
             return "#b3413a"
+        if label in ("sin", "cos", "tan", "√", "log", "ln", "π", "e"):
+            return "#5a3a8a"  # púrpura para funciones científicas
         if label in _OPERATORS or label in ("(", ")"):
             return "#3a3a3a"
         return "#4a4a4a"
@@ -107,6 +123,8 @@ class CalculatorApp(ctk.CTk):
             self._backspace()
         elif label == "=":
             self._evaluate()
+        elif label in _BTN_TEXT:
+            self._append(_BTN_TEXT[label])
         else:
             self._append(label)
 

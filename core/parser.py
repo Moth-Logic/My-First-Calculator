@@ -53,7 +53,13 @@ class UnaryOp:
     operand: "ASTNode"
 
 
-ASTNode = Union[Number, BinaryOp, UnaryOp]
+@dataclass(frozen=True)
+class FunctionCall:
+    name: str
+    argument: "ASTNode"
+
+
+ASTNode = Union[Number, BinaryOp, UnaryOp, FunctionCall]
 
 
 # ---------------------------------------------------------------------
@@ -87,7 +93,7 @@ class Parser:
             node = BinaryOp(node, op, self._factor())
         return node
 
-    # factor -> NUMBER | "(" expression ")" | ("-" | "+") factor
+    # factor -> NUMBER | FUNCTION "(" expression ")" | "(" expression ")" | ("-" | "+") factor
     def _factor(self) -> ASTNode:
         token = self._current()
 
@@ -98,6 +104,14 @@ class Parser:
         if token.type == TokenType.NUMBER:
             self._advance()
             return Number(token.value)  # type: ignore[arg-type]
+
+        if token.type == TokenType.FUNCTION:
+            func_name = token.value  # type: ignore[assignment]
+            self._advance()
+            self._expect(TokenType.LPAREN, f"Se esperaba '(' después de {func_name}")
+            argument = self._expression()
+            self._expect(TokenType.RPAREN, f"Se esperaba ')' después del argumento de {func_name}")
+            return FunctionCall(func_name, argument)  # type: ignore[arg-type]
 
         if token.type == TokenType.LPAREN:
             self._advance()

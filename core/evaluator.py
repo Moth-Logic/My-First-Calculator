@@ -12,8 +12,10 @@ programa (lexer, parser, GUI) no se entera del cambio.
 
 from __future__ import annotations
 
+import math
+
 from .lexer import TokenType
-from .parser import ASTNode, BinaryOp, Number, UnaryOp
+from .parser import ASTNode, BinaryOp, FunctionCall, Number, UnaryOp
 
 
 class EvaluationError(Exception):
@@ -21,6 +23,26 @@ class EvaluationError(Exception):
 
 
 class Evaluator:
+    # Mapa de funciones científicas: nombre -> callable(float) -> float
+    _FUNCTIONS: dict[str, callable] = {
+        # Trigonométricas (input en grados)
+        "sin": lambda x: math.sin(math.radians(x)),
+        "cos": lambda x: math.cos(math.radians(x)),
+        "tan": lambda x: math.tan(math.radians(x)),
+        "asin": lambda x: math.degrees(math.asin(x)),
+        "acos": lambda x: math.degrees(math.acos(x)),
+        "atan": lambda x: math.degrees(math.atan(x)),
+        # Potencia / raíz
+        "sqrt": math.sqrt,
+        "cbrt": lambda x: math.copysign(abs(x) ** (1 / 3), x),
+        "exp": math.exp,
+        # Logaritmos
+        "log": math.log10,   # log base 10
+        "ln": math.log,     # logaritmo natural
+        # Otros
+        "abs": abs,
+    }
+
     def evaluate(self, node: ASTNode) -> float:
         if isinstance(node, Number):
             return node.value
@@ -34,7 +56,24 @@ class Evaluator:
             right = self.evaluate(node.right)
             return self._apply(node.operator, left, right)
 
+        if isinstance(node, FunctionCall):
+            return self._apply_function(node.name, node.argument)
+
         raise EvaluationError(f"Nodo AST desconocido: {node!r}")
+
+    def _apply_function(self, name: str, argument: ASTNode) -> float:
+        """Evalúa una función científica sobre un nodo AST."""
+        value = self.evaluate(argument)
+        func = self._FUNCTIONS.get(name)
+        if func is None:
+            raise EvaluationError(f"Función desconocida: {name}")
+        try:
+            result = func(value)
+        except ValueError as exc:
+            raise EvaluationError(f"Error en {name}({value}): {exc}") from exc
+        except ZeroDivisionError as exc:
+            raise EvaluationError(f"División por cero en {name}({value})") from exc
+        return result
 
     @staticmethod
     def _apply(operator: TokenType, left: float, right: float) -> float:

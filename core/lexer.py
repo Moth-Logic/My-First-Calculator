@@ -21,6 +21,8 @@ class TokenType(Enum):
     SLASH = auto()
     LPAREN = auto()
     RPAREN = auto()
+    FUNCTION = auto()  # sin, cos, tan, etc.
+    COMMA = auto()
     EOF = auto()
 
 
@@ -46,6 +48,21 @@ _SINGLE_CHAR_TOKENS = {
     "/": TokenType.SLASH,
     "(": TokenType.LPAREN,
     ")": TokenType.RPAREN,
+    ",": TokenType.COMMA,
+}
+
+# Funciones científicas y constantes reconocidas por el lexer
+_SCIENTIFIC_FUNCTIONS = frozenset({
+    "sin", "cos", "tan",
+    "asin", "acos", "atan",
+    "sqrt", "cbrt",
+    "log", "ln",
+    "abs", "exp",
+})
+
+_SCIENTIFIC_CONSTANTS = {
+    "pi": 3.141592653589793,
+    "e": 2.718281828459045,
 }
 
 
@@ -68,6 +85,10 @@ class Lexer:
                 tokens.append(self._read_number())
                 continue
 
+            if char.isalpha() or char == "_":
+                tokens.append(self._read_identifier())
+                continue
+
             if char in _SINGLE_CHAR_TOKENS:
                 tokens.append(Token(_SINGLE_CHAR_TOKENS[char]))
                 self._pos += 1
@@ -77,6 +98,25 @@ class Lexer:
 
         tokens.append(Token(TokenType.EOF))
         return tokens
+
+    def _read_identifier(self) -> Token:
+        """Lee un identificador: puede ser una función (sin, cos...) o una
+        constante (pi, e). El tipo de token resultante depende del nombre."""
+        start = self._pos
+        while self._pos < self._length and (
+            self._source[self._pos].isalnum() or self._source[self._pos] == "_"
+        ):
+            self._pos += 1
+        name = self._source[start:self._pos]
+        name_lower = name.lower()
+
+        if name_lower in _SCIENTIFIC_FUNCTIONS:
+            return Token(TokenType.FUNCTION, name_lower)
+
+        if name_lower in _SCIENTIFIC_CONSTANTS:
+            return Token(TokenType.NUMBER, _SCIENTIFIC_CONSTANTS[name_lower])
+
+        raise LexerError(f"Identificador desconocido '{name}' en la posición {start}")
 
     def _read_number(self) -> Token:
         start = self._pos
