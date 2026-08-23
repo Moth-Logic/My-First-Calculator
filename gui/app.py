@@ -20,17 +20,17 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 _BUTTON_LAYOUT = [
-    ["sin", "cos", "tan", "π"],
-    ["√", "log", "ln", "e"],
-    ["asin", "acos", "atan", "^"],
-    ["(", ")", "C", "←"],
-    ["7", "8", "9", "/"],
-    ["4", "5", "6", "*"],
-    ["1", "2", "3", "-"],
-    ["0", ".", "=", "+"],
+    ["sin", "cos", "tan", "asin", "acos"],
+    ["√", "log", "ln", "atan", "π"],
+    ["e", "(", ")", "%", "^"],
+    ["C", "←", "/", "*", ""],
+    ["7", "8", "9", "-", ""],
+    ["4", "5", "6", "+", ""],
+    ["1", "2", "3", "=", ""],
+    ["0", ".", "", "", ""],
 ]
 
-_OPERATORS = {"/", "*", "-", "+", "^"}
+_OPERATORS = {"/", "*", "-", "+", "^", "%"}
 
 # Mapeo de botones de la UI -> texto que se inserta en la expresión
 _BTN_TEXT = {
@@ -56,7 +56,7 @@ class CalculatorApp(ctk.CTk):
         self._expression = ""
 
         self.title("My First Calculator")
-        self.geometry("320x640")
+        self.geometry("400x640")
         self.resizable(False, False)
         self.grid_columnconfigure(0, weight=1)
 
@@ -87,6 +87,8 @@ class CalculatorApp(ctk.CTk):
         for r, row in enumerate(_BUTTON_LAYOUT):
             frame.grid_rowconfigure(r, weight=1)
             for c, label in enumerate(row):
+                if not label:
+                    continue
                 frame.grid_columnconfigure(c, weight=1)
                 btn = ctk.CTkButton(
                     frame,
@@ -113,7 +115,7 @@ class CalculatorApp(ctk.CTk):
     def _bind_keyboard(self) -> None:
         self.bind("<Return>", lambda _e: self._evaluate())
         self.bind("<BackSpace>", lambda _e: self._backspace())
-        for char in "0123456789.+-*/()^":
+        for char in "0123456789.+-*/()^%":
             self.bind(char, lambda e, c=char: self._append(c))
 
     # ------------------------------------------------------------------

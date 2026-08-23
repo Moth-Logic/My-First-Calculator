@@ -101,7 +101,7 @@ Windows (la X de la esquina) para terminar el programa.
 ## 5. Cómo usar la calculadora
 
 - **Botones numéricos** (`0`-`9`) y **`.`** para decimales.
-- **Operadores**: `+`, `-`, `*`, `/`, `^` (potencia).
+- **Operadores**: `+`, `-`, `*`, `/`, `^` (potencia), `%` (módulo).
 - **Paréntesis** `(` `)`: para agrupar operaciones, ej. `(2 + 3) * 4`.
 - **Funciones científicas** (botones púrpura):
   - Trigonométricas: `sin`, `cos`, `tan`, `asin`, `acos`, `atan`
@@ -116,7 +116,7 @@ Windows (la X de la esquina) para terminar el programa.
 - **`C`**: borra todo (empezar de cero).
 - **`←`**: borra el último carácter escrito.
 - **Teclado físico**: todos los botones también funcionan con el
-  teclado — números, `+ - * / ( ) ^`, `Enter` (=) y `Backspace` (←).
+  teclado — números, `+ - * / ( ) ^ %`, `Enter` (=) y `Backspace` (←).
 
 **Ejemplos de expresiones válidas:**
 
@@ -132,6 +132,7 @@ Windows (la X de la esquina) para terminar el programa.
 | `sqrt(16) + log(100)`          | `6`       |
 | `ceil(3.2) * floor(4.8)`      | `12`      |
 | `pi * 2`                       | `6.28...` |
+| `10 % 3`                       | `1`       |
 | `2^3^2`                        | `512`     |
 
 Si escribís algo inválido (ej. `5 / 0` o paréntesis sin cerrar), la
@@ -236,7 +237,7 @@ excepción para `dist\MyFirstCalculator.exe` en Windows Defender.
 - [x] Funciones científicas: `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `sinh`, `cosh`, `tanh`, `sqrt`, `cbrt`, `log`, `ln`, `abs`, `exp`, `ceil`, `floor`, `round`
 - [x] Constantes: `pi`, `e`
 - [x] Modo "científica" (filas de botones púrpura)
-- [ ] Operador módulo (`%`)
+- [x] Operador módulo (`%`) — misma precedencia que `*` y `/`
 - [ ] Historial de operaciones
 - [ ] Migrar `Evaluator` a C++ vía `pybind11`, benchmarking Python vs C++
 - [ ] Variables/memoria (`M+`, `M-`, `MR`) — requiere una tabla de símbolos

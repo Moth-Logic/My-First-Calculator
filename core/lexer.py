@@ -24,6 +24,7 @@ class TokenType(Enum):
     FUNCTION = auto()  # sin, cos, tan, etc.
     COMMA = auto()
     CARET = auto()
+    PERCENT = auto()
     EOF = auto()
 
 
@@ -51,6 +52,7 @@ _SINGLE_CHAR_TOKENS = {
     ")": TokenType.RPAREN,
     ",": TokenType.COMMA,
     "^": TokenType.CARET,
+    "%": TokenType.PERCENT,
 }
 
 # Funciones científicas y constantes reconocidas por el lexer

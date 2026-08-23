@@ -89,7 +89,7 @@ class Parser:
     # term -> power ( ("*" | "/") power )*
     def _term(self) -> ASTNode:
         node = self._power()
-        while self._current().type in (TokenType.STAR, TokenType.SLASH):
+        while self._current().type in (TokenType.STAR, TokenType.SLASH, TokenType.PERCENT):
             op = self._advance().type
             node = BinaryOp(node, op, self._power())
         return node

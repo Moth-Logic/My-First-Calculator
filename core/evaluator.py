@@ -101,4 +101,8 @@ class Evaluator:
             except OverflowError:
                 raise EvaluationError("Resultado demasiado grande")
             return result
+        if operator == TokenType.PERCENT:
+            if right == 0:
+                raise EvaluationError("Módulo por cero")
+            return left % right
         raise EvaluationError(f"Operador desconocido: {operator}")
