@@ -3,8 +3,9 @@
 Calculadora de escritorio con interfaz gráfica moderna, hecha en Python.
 Empieza simple (`+ - * /` con paréntesis) y hoy incluye funciones
 científicas completas (trig, log, potencias, hiperbólicas, redondeo).
-Está diseñada para seguir creciendo — próximas entregas van a sumar
-memoria, historial, y piezas escritas en C++.
+Está diseñada para seguir creciendo — el evaluator ya fue migrado a
+C++ vía pybind11 para máximo rendimiento, y próximas entregas van a
+sumar memoria, historial, y más optimizaciones.
 
 ---
 
@@ -78,7 +79,8 @@ Qué hace cada línea:
 - `venv\Scripts\activate` — activa ese entorno. Vas a ver `(venv)` al
   inicio de la línea de la terminal si funcionó.
 - `pip install -r requirements.txt` — instala `customtkinter` (la
-  librería de la interfaz) y `pyinstaller` (para generar el `.exe`).
+  librería de la interfaz), `pyinstaller` (para generar el `.exe`),
+  y `pybind11` / `setuptools` (para compilar el evaluador C++).
 
 > **Nota:** cada vez que abras una terminal nueva para trabajar en este
 > proyecto, tenés que volver a correr `venv\Scripts\activate` primero.
@@ -95,6 +97,14 @@ python main.py
 
 Se abre la ventana de la calculadora. Cerrala como cualquier ventana de
 Windows (la X de la esquina) para terminar el programa.
+
+> **Nota sobre el evaluador C++**: la app funciona tanto con el backend
+> C++ compilado como con el fallback puro en Python. Si no compilaste
+> el `.pyd`, el evaluator usa Python automáticamente. Para compilarlo:
+>
+> ```powershell
+> python setup.py build_ext --inplace
+> ```
 
 ---
 
@@ -173,16 +183,18 @@ carpeta del proyecto ni Python instalado.
 
 ```
 my_first_calculator/
-├── core/                   <- 100% Python, sin dependencias de GUI
+├── core/                   <- Lógica de cálculo (sin dependencias de GUI)
 │   ├── lexer.py             string -> Tokens
 │   ├── parser.py            Tokens -> AST (recursive descent, respeta precedencia)
-│   ├── evaluator.py         AST -> float  (candidato a migrar a C++ a futuro)
+│   ├── evaluator.py         AST -> float  (usa C++ si está compilado, si no Python)
+│   ├── evaluator.cpp        Implementación C++ del evaluator (pybind11)
 │   └── calculator.py        Facade: une lexer + parser + evaluator
 ├── gui/
 │   └── app.py                CustomTkinter — solo dibuja, delega todo el cálculo a core.Calculator
+├── setup.py                   Build del evaluador C++ (python setup.py build_ext --inplace)
 ├── main.py                    Punto de entrada (python main.py)
 ├── build.spec                 Config de PyInstaller para generar el .exe
-├── requirements.txt            Dependencias (customtkinter, pyinstaller)
+├── requirements.txt            Dependencias (customtkinter, pyinstaller, pybind11)
 └── README.md                   Este archivo
 ```
 
@@ -192,10 +204,12 @@ my_first_calculator/
   un CLI, una API web, o correr tests sobre el core sin abrir ninguna
   ventana.
 - `evaluator.py` está aislado a propósito: es el punto exacto donde,
-  cuando llegue el momento de optimizar (matrices grandes, cálculo
-  numérico pesado), se reemplaza por un módulo en C++ compilado con
-  `pybind11`. El AST que produce `parser.py` es el "contrato" que cruza
-  esa frontera — el resto del programa no se entera del cambio.
+  cuando llegue el momento de optimizar, se reemplaza por un módulo
+  en C++ compilado con `pybind11`. El AST que produce `parser.py` es
+  el "contrato" que cruza esa frontera — el resto del programa no se
+  entera del cambio. Esto ya está hecho: `evaluator.cpp` implementa
+  toda la lógica en C++ y `evaluator.py` lo usa automáticamente si
+  el `.pyd` está compilado, o cae al fallback puro en Python.
 - El parser es recursive-descent real (no `eval()` de Python), porque
   `eval()` es un riesgo de seguridad y no enseña nada reusable para
   cursos de compiladores o para AXIOMA.
@@ -239,7 +253,7 @@ excepción para `dist\MyFirstCalculator.exe` en Windows Defender.
 - [x] Modo "científica" (filas de botones púrpura)
 - [x] Operador módulo (`%`) — misma precedencia que `*` y `/`
 - [ ] Historial de operaciones
-- [ ] Migrar `Evaluator` a C++ vía `pybind11`, benchmarking Python vs C++
+- [x] Migrar `Evaluator` a C++ vía `pybind11` — con fallback a Python si no está compilado
 - [ ] Variables/memoria (`M+`, `M-`, `MR`) — requiere una tabla de símbolos
 - [ ] Números complejos / fracciones exactas (`Fraction` en vez de `float`)
 - [ ] Modo grados / radianes toggle para funciones trigonométricas

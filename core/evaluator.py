@@ -3,19 +3,25 @@ evaluator.py
 ------------
 Recorre el AST (patrón Visitor simplificado) y produce el número final.
 
-*** ESTE es el módulo que en el futuro migraremos a C++ ***
-Cuando lleguen operaciones pesadas (matrices, cálculo numérico intensivo,
-o simplemente cuando quieras optimizar), esta clase es el punto exacto
-de reemplazo: mismo AST de entrada, mismo float de salida. El resto del
-programa (lexer, parser, GUI) no se entera del cambio.
+Este módulo intenta usar la implementación C++ (_evaluator_cpp) para
+obtener máximo rendimiento. Si el módulo C++ no está compilado, cae
+graciosamente al evaluator puro en Python.
 """
 
 from __future__ import annotations
 
 import math
+from typing import ClassVar
 
 from .lexer import TokenType
 from .parser import ASTNode, BinaryOp, FunctionCall, Number, UnaryOp
+
+# Intentar importar el backend C++
+try:
+    from ._evaluator_cpp import evaluate as _cpp_evaluate
+    _HAS_CPP = True
+except ImportError:
+    _HAS_CPP = False
 
 
 class EvaluationError(Exception):
@@ -24,7 +30,7 @@ class EvaluationError(Exception):
 
 class Evaluator:
     # Mapa de funciones científicas: nombre -> callable(float) -> float
-    _FUNCTIONS: dict[str, callable] = {
+    _FUNCTIONS: ClassVar[dict[str, callable]] = {
         # Trigonométricas (input en grados)
         "sin": lambda x: math.sin(math.radians(x)),
         "cos": lambda x: math.cos(math.radians(x)),
@@ -52,6 +58,14 @@ class Evaluator:
     }
 
     def evaluate(self, node: ASTNode) -> float:
+        # Usar el backend C++ si está disponible
+        if _HAS_CPP:
+            try:
+                return _cpp_evaluate(node)
+            except ValueError as exc:
+                raise EvaluationError(str(exc)) from exc
+
+        # Fallback: evaluador puro en Python
         if isinstance(node, Number):
             return node.value
 

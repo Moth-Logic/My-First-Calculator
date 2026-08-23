@@ -12,6 +12,18 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Build artifacts del evaluador C++
+build/
+*.pyd
+*.so
+*.dll
+*.obj
+*.o
+*.lib
+*.exp
+*.egg-info/
+*.egg
+
 # Editores
 .vscode/
 .idea/
