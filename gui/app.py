@@ -1,23 +1,39 @@
 """
 gui/app.py
 ----------
-Interfaz gráfica. Sabe DIBUJAR botones y leer clics; no sabe nada de
-tokens, AST ni precedencia de operadores. Toda la aritmética se delega
-al Calculator (core.calculator.Calculator).
+Single-window "everything app" with four tabs:
+  1. Calculator     — scientific calculator (delegates to core.Calculator)
+  2. Base Converter — bin / oct / dec / hex conversion with copy buttons
+  3. ASCII Table    — interactive, searchable ASCII reference
+  4. Notepad        — plain-text scratch pad
 
-Separar esto así es lo que nos permite, a futuro, cambiar toda esta
-capa por una web app en JavaScript sin tocar core/ para nada.
+Each tab builds its own widgets inside the CTkTabview page.
 """
 
 from __future__ import annotations
 
+import tkinter as tk
+
 import customtkinter as ctk
 
-from core import Calculator, CalculatorError
+from core import (
+    Calculator,
+    CalculatorError,
+    convert,
+    BaseConverterError,
+    generate_table,
+    search_table,
+)
 
-# --- Configuración visual global -----------------------------------------
+# --- Visual config -------------------------------------------------------
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
+
+_DARK_BG = "#1e1e1e"
+
+# ========================================================================
+#  CALCULATOR TAB
+# ========================================================================
 
 _BUTTON_LAYOUT = [
     ["sin", "cos", "tan", "asin", "acos"],
@@ -32,126 +48,175 @@ _BUTTON_LAYOUT = [
 
 _OPERATORS = {"/", "*", "-", "+", "^", "%"}
 
-# Mapeo de botones de la UI -> texto que se inserta en la expresión
 _BTN_TEXT = {
-    "sin": "sin(",
-    "cos": "cos(",
-    "tan": "tan(",
-    "asin": "asin(",
-    "acos": "acos(",
-    "atan": "atan(",
-    "√": "sqrt(",
-    "log": "log(",
-    "ln": "ln(",
-    "π": "pi",
-    "e": "e",
+    "sin": "sin(", "cos": "cos(", "tan": "tan(",
+    "asin": "asin(", "acos": "acos(", "atan": "atan(",
+    "√": "sqrt(", "log": "log(", "ln": "ln(",
+    "π": "pi", "e": "e",
 }
 
 
-class CalculatorApp(ctk.CTk):
+def _btn_color(label: str) -> str:
+    if label == "=":
+        return "#2fa572"
+    if label in ("C", "←"):
+        return "#b3413a"
+    if label in _BTN_TEXT:
+        return "#5a3a8a"
+    if label in _OPERATORS or label in ("(", ")"):
+        return "#3a3a3a"
+    return "#4a4a4a"
+
+
+# ========================================================================
+#  BASE CONVERTER TAB
+# ========================================================================
+
+_BASE_KEYS = ["DEC", "BIN", "OCT", "HEX"]
+_BASE_LABELS = {"DEC": "Decimal", "BIN": "Binary", "OCT": "Octal", "HEX": "Hexadecimal"}
+_BASE_RADIX = {"DEC": 10, "BIN": 2, "OCT": 8, "HEX": 16}
+
+
+# ========================================================================
+#  ASCII TABLE TAB
+# ========================================================================
+
+_TABLE_COLUMNS = ("DEC", "HEX", "OCT", "BIN", "CHAR")
+_COL_WIDTHS = {"DEC": 60, "HEX": 60, "OCT": 60, "BIN": 100, "CHAR": 60}
+
+
+# ========================================================================
+#  MAIN APP
+# ========================================================================
+
+class EverythingApp(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
 
-        self._calculator = Calculator()
+        self._is_dark = True  # track current theme
+
+        self.title("Everything App")
+        self.geometry("560x740")
+        self.minsize(500, 640)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
+        # -- Header -------------------------------------------------------
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.grid(row=0, column=0, pady=(10, 4), sticky="ew", padx=16)
+        header.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            header,
+            text="⚡ Everything App",
+            font=ctk.CTkFont(size=22, weight="bold"),
+            height=40,
+        ).grid(row=0, column=0, sticky="w")
+
+        self._theme_btn = ctk.CTkButton(
+            header,
+            text="🌙 Dark",
+            font=ctk.CTkFont(size=13),
+            width=90,
+            height=32,
+            fg_color="#3a3a3a",
+            command=self._toggle_theme,
+        )
+        self._theme_btn.grid(row=0, column=1, sticky="e", padx=(8, 0))
+
+        # -- Tabview ------------------------------------------------------
+        self._tabs = ctk.CTkTabview(self, anchor="nw")
+        self._tabs.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
+
+        self._tab_calc = self._tabs.add("🧮 Calculator")
+        self._tab_base = self._tabs.add("🔄 Base Converter")
+        self._tab_ascii = self._tabs.add("📋 ASCII Table")
+        self._tab_notepad = self._tabs.add("📝 Notepad")
+
+        self._build_calculator_tab()
+        self._build_base_converter_tab()
+        self._build_ascii_table_tab()
+        self._build_notepad_tab()
+
+    # ------------------------------------------------------------------ #
+    #  1. CALCULATOR                                                      #
+    # ------------------------------------------------------------------ #
+
+    def _build_calculator_tab(self) -> None:
+        tab = self._tab_calc
+        tab.grid_columnconfigure(0, weight=1)
+
+        self._calc = Calculator()
         self._expression = ""
 
-        self.title("My First Calculator")
-        self.geometry("400x640")
-        self.resizable(False, False)
-        self.grid_columnconfigure(0, weight=1)
-
-        self._build_display()
-        self._build_buttons()
-        self._bind_keyboard()
-
-    # ------------------------------------------------------------------
-    # Construcción de la UI
-    # ------------------------------------------------------------------
-
-    def _build_display(self) -> None:
+        # Display
         self._display = ctk.CTkLabel(
-            self,
+            tab,
             text="0",
             font=ctk.CTkFont(size=32, weight="bold"),
             anchor="e",
-            height=90,
+            height=80,
             fg_color="#1e1e1e",
             corner_radius=12,
         )
-        self._display.grid(row=0, column=0, padx=16, pady=(16, 8), sticky="nsew")
+        self._display.grid(row=0, column=0, padx=12, pady=(12, 6), sticky="nsew")
 
-    def _build_buttons(self) -> None:
-        frame = ctk.CTkFrame(self, fg_color="transparent")
-        frame.grid(row=1, column=0, padx=16, pady=8, sticky="nsew")
+        # Buttons
+        btn_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        btn_frame.grid(row=1, column=0, padx=12, pady=6, sticky="nsew")
 
         for r, row in enumerate(_BUTTON_LAYOUT):
-            frame.grid_rowconfigure(r, weight=1)
+            btn_frame.grid_rowconfigure(r, weight=1)
             for c, label in enumerate(row):
                 if not label:
                     continue
-                frame.grid_columnconfigure(c, weight=1)
+                btn_frame.grid_columnconfigure(c, weight=1)
                 btn = ctk.CTkButton(
-                    frame,
+                    btn_frame,
                     text=label,
-                    font=ctk.CTkFont(size=20),
-                    height=64,
-                    fg_color=self._color_for(label),
-                    command=lambda l=label: self._on_button(l),
+                    font=ctk.CTkFont(size=18),
+                    height=52,
+                    fg_color=_btn_color(label),
+                    command=lambda l=label: self._on_calc_button(l),
                 )
-                btn.grid(row=r, column=c, padx=6, pady=6, sticky="nsew")
+                btn.grid(row=r, column=c, padx=4, pady=4, sticky="nsew")
 
-    @staticmethod
-    def _color_for(label: str) -> str:
-        if label == "=":
-            return "#2fa572"
-        if label in ("C", "←"):
-            return "#b3413a"
-        if label in ("sin", "cos", "tan", "asin", "acos", "atan", "√", "log", "ln", "π", "e"):
-            return "#5a3a8a"  # púrpura para funciones científicas
-        if label in _OPERATORS or label in ("(", ")"):
-            return "#3a3a3a"
-        return "#4a4a4a"
-
-    def _bind_keyboard(self) -> None:
-        self.bind("<Return>", lambda _e: self._evaluate())
-        self.bind("<BackSpace>", lambda _e: self._backspace())
+        # Keyboard bindings (on the main window)
+        self.bind("<Return>", lambda _e: self._calc_evaluate())
+        self.bind("<BackSpace>", lambda _e: self._calc_backspace())
         for char in "0123456789.+-*/()^%":
-            self.bind(char, lambda e, c=char: self._append(c))
+            self.bind(char, lambda e, c=char: self._calc_append(c))
 
-    # ------------------------------------------------------------------
-    # Lógica de interacción (delega TODO el cálculo al core)
-    # ------------------------------------------------------------------
-
-    def _on_button(self, label: str) -> None:
+    def _on_calc_button(self, label: str) -> None:
         if label == "C":
-            self._clear()
+            self._calc_clear()
         elif label == "←":
-            self._backspace()
+            self._calc_backspace()
         elif label == "=":
-            self._evaluate()
+            self._calc_evaluate()
         elif label in _BTN_TEXT:
-            self._append(_BTN_TEXT[label])
+            self._calc_append(_BTN_TEXT[label])
         else:
-            self._append(label)
+            self._calc_append(label)
 
-    def _append(self, char: str) -> None:
+    def _calc_append(self, char: str) -> None:
         self._expression += char
         self._display.configure(text=self._expression)
 
-    def _clear(self) -> None:
+    def _calc_clear(self) -> None:
         self._expression = ""
         self._display.configure(text="0")
 
-    def _backspace(self) -> None:
+    def _calc_backspace(self) -> None:
         self._expression = self._expression[:-1]
         self._display.configure(text=self._expression or "0")
 
-    def _evaluate(self) -> None:
+    def _calc_evaluate(self) -> None:
         if not self._expression:
             return
         try:
-            result = self._calculator.evaluate(self._expression)
-            formatted = self._format_result(result)
+            result = self._calc.evaluate(self._expression)
+            formatted = self._fmt(result)
             self._display.configure(text=formatted)
             self._expression = formatted
         except CalculatorError:
@@ -159,16 +224,326 @@ class CalculatorApp(ctk.CTk):
             self._expression = ""
 
     @staticmethod
-    def _format_result(value: float) -> str:
-        # Si el resultado es un entero exacto (ej. 4.0), muéstralo sin
-        # decimales para que se sienta como una calculadora real.
+    def _fmt(value: float) -> str:
         if value == int(value):
             return str(int(value))
         return f"{value:.10g}"
 
+    # ------------------------------------------------------------------ #
+    #  2. BASE CONVERTER                                                  #
+    # ------------------------------------------------------------------ #
+
+    def _build_base_converter_tab(self) -> None:
+        tab = self._tab_base
+        tab.grid_columnconfigure(0, weight=1)
+
+        self._base_vars: dict[str, ctk.StringVar] = {}
+        self._base_entries: dict[str, ctk.CTkEntry] = {}
+
+        for i, key in enumerate(_BASE_KEYS):
+            tab.grid_rowconfigure(i, weight=0)
+
+            row_frame = ctk.CTkFrame(tab, fg_color="transparent")
+            row_frame.grid(row=i, column=0, padx=12, pady=4, sticky="nsew")
+            row_frame.grid_columnconfigure(1, weight=1)
+
+            lbl = ctk.CTkLabel(
+                row_frame,
+                text=_BASE_LABELS[key],
+                font=ctk.CTkFont(size=14, weight="bold"),
+                width=90,
+                anchor="w",
+            )
+            lbl.grid(row=0, column=0, padx=(0, 8), sticky="w")
+
+            var = ctk.StringVar()
+            entry = ctk.CTkEntry(
+                row_frame,
+                textvariable=var,
+                font=ctk.CTkFont(size=16, family="Consolas"),
+                height=40,
+                corner_radius=8,
+            )
+            entry.grid(row=0, column=1, sticky="nsew")
+
+            # Copy button
+            copy_btn = ctk.CTkButton(
+                row_frame,
+                text="📋",
+                font=ctk.CTkFont(size=14),
+                width=36,
+                height=36,
+                fg_color="#3a3a3a",
+                command=lambda k=key: self._copy_base_field(k),
+            )
+            copy_btn.grid(row=0, column=2, padx=(6, 0))
+
+            self._base_vars[key] = var
+            self._base_entries[key] = entry
+
+            # Bind real-time conversion
+            var.trace_add("write", lambda *_a, k=key: self._on_base_input(k))
+
+    def _on_base_input(self, source_key: str) -> None:
+        """Convert from whichever field the user is typing into."""
+        raw = self._base_vars[source_key].get().strip()
+        if not raw:
+            for k in _BASE_KEYS:
+                if k != source_key:
+                    self._base_vars[k].set("")
+            return
+
+        try:
+            results = convert(raw, _BASE_RADIX[source_key])
+        except BaseConverterError:
+            for k in _BASE_KEYS:
+                if k != source_key:
+                    self._base_vars[k].set("—")
+            return
+
+        # Suppress trace while updating other fields
+        for k in _BASE_KEYS:
+            if k != source_key:
+                self._base_vars[k].set(results[k])
+
+    def _copy_base_field(self, key: str) -> None:
+        """Copy the value of a base-converter field to the clipboard."""
+        value = self._base_vars[key].get()
+        if value:
+            self.clipboard_clear()
+            self.clipboard_append(value)
+            self._flash_copy_button(key)
+
+    def _flash_copy_button(self, key: str) -> None:
+        """Briefly show a ✓ feedback on the copy button."""
+        idx = _BASE_KEYS.index(key)
+        # Find the copy button widget — it's the last child in the row frame
+        tab = self._tab_base
+        row_frames = [w for w in tab.winfo_children() if isinstance(w, ctk.CTkFrame)]
+        if idx < len(row_frames):
+            btns = [w for w in row_frames[idx].winfo_children() if isinstance(w, ctk.CTkButton)]
+            if btns:
+                btn = btns[-1]
+                original = btn.cget("text")
+                btn.configure(text="✓", fg_color="#2fa572")
+                self.after(600, lambda: btn.configure(text=original, fg_color="#3a3a3a"))
+
+    # ------------------------------------------------------------------ #
+    #  3. ASCII TABLE                                                     #
+    # ------------------------------------------------------------------ #
+
+    def _build_ascii_table_tab(self) -> None:
+        tab = self._tab_ascii
+        tab.grid_columnconfigure(0, weight=1)
+        tab.grid_rowconfigure(1, weight=1)
+
+        # Search bar
+        search_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        search_frame.grid(row=0, column=0, padx=12, pady=(10, 4), sticky="nsew")
+        search_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            search_frame, text="🔍", font=ctk.CTkFont(size=16)
+        ).grid(row=0, column=0, padx=(0, 6))
+
+        self._ascii_search_var = ctk.StringVar()
+        self._ascii_search_var.trace_add("write", lambda *_a: self._refresh_ascii_table())
+        search_entry = ctk.CTkEntry(
+            search_frame,
+            textvariable=self._ascii_search_var,
+            placeholder_text="Search by dec, hex, char, or name…",
+            font=ctk.CTkFont(size=14),
+            height=36,
+        )
+        search_entry.grid(row=0, column=1, sticky="nsew")
+
+        # Table (scrollable frame with header + rows)
+        self._ascii_scroll = ctk.CTkScrollableFrame(tab, fg_color=_DARK_BG, corner_radius=8)
+        self._ascii_scroll.grid(row=1, column=0, padx=12, pady=(4, 10), sticky="nsew")
+        self._ascii_scroll.grid_columnconfigure(4, weight=1)
+
+        self._refresh_ascii_table()
+
+    def _refresh_ascii_table(self) -> None:
+        """Rebuild the ASCII table rows inside the scrollable frame."""
+        # Clear existing widgets
+        for w in self._ascii_scroll.winfo_children():
+            w.destroy()
+
+        query = self._ascii_search_var.get()
+        rows = search_table(query) if query else generate_table()
+
+        # Header
+        for c, col in enumerate(_TABLE_COLUMNS):
+            ctk.CTkLabel(
+                self._ascii_scroll,
+                text=col,
+                font=ctk.CTkFont(size=13, weight="bold"),
+                width=_COL_WIDTHS[col],
+                anchor="center",
+            ).grid(row=0, column=c, padx=2, pady=(4, 2))
+
+        # Rows
+        for r, row in enumerate(rows, start=1):
+            bg = "#2a2a2a" if r % 2 == 0 else "transparent"
+            for c, col in enumerate(_TABLE_COLUMNS):
+                val = row[col]
+                lbl = ctk.CTkLabel(
+                    self._ascii_scroll,
+                    text=val,
+                    font=ctk.CTkFont(size=13, family="Consolas"),
+                    width=_COL_WIDTHS[col],
+                    anchor="center",
+                    fg_color=bg,
+                    corner_radius=2,
+                )
+                lbl.grid(row=r, column=c, padx=1, pady=1)
+
+    # ------------------------------------------------------------------ #
+    #  4. NOTEPAD                                                         #
+    # ------------------------------------------------------------------ #
+
+    def _build_notepad_tab(self) -> None:
+        tab = self._tab_notepad
+        tab.grid_columnconfigure(0, weight=1)
+        tab.grid_rowconfigure(0, weight=1)
+
+        # Toolbar
+        toolbar = ctk.CTkFrame(tab, fg_color="transparent")
+        toolbar.grid(row=0, column=0, padx=12, pady=(8, 4), sticky="ew")
+
+        ctk.CTkButton(
+            toolbar, text="💾 Save", font=ctk.CTkFont(size=13),
+            width=80, height=30, fg_color="#2fa572",
+            command=self._notepad_save,
+        ).pack(side="left", padx=(0, 6))
+
+        ctk.CTkButton(
+            toolbar, text="📂 Open", font=ctk.CTkFont(size=13),
+            width=80, height=30, fg_color="#3a6ea5",
+            command=self._notepad_open,
+        ).pack(side="left", padx=(0, 6))
+
+        ctk.CTkButton(
+            toolbar, text="🗑 Clear", font=ctk.CTkFont(size=13),
+            width=80, height=30, fg_color="#b3413a",
+            command=self._notepad_clear,
+        ).pack(side="left")
+
+        self._notepad_status = ctk.CTkLabel(
+            toolbar, text="", font=ctk.CTkFont(size=12),
+            text_color="#888888",
+        )
+        self._notepad_status.pack(side="right")
+
+        ctk.CTkButton(
+            toolbar, text="↩ Undo", font=ctk.CTkFont(size=13),
+            width=80, height=30, fg_color="#5a3a8a",
+            command=self._notepad_undo,
+        ).pack(side="left", padx=(12, 6))
+
+        ctk.CTkButton(
+            toolbar, text="↪ Redo", font=ctk.CTkFont(size=13),
+            width=80, height=30, fg_color="#5a3a8a",
+            command=self._notepad_redo,
+        ).pack(side="left")
+
+        # Text editor (undo=True enables the built-in undo stack)
+        self._notepad_text = ctk.CTkTextbox(
+            tab,
+            font=ctk.CTkFont(size=14, family="Consolas"),
+            corner_radius=8,
+            wrap="word",
+            undo=True,
+        )
+        self._notepad_text.grid(row=1, column=0, padx=12, pady=(4, 10), sticky="nsew")
+        self._notepad_text.insert("1.0", "Start typing here…")
+        self._notepad_text.edit_reset()  # clear the undo history for the initial text
+        self._notepad_text.edit_modified(False)
+        self._notepad_file_path: str | None = None
+
+        # Keyboard shortcuts: Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
+        self.bind("<Control-z>", lambda _e: self._notepad_undo())
+        self.bind("<Control-y>", lambda _e: self._notepad_redo())
+        self.bind("<Control-Shift-Z>", lambda _e: self._notepad_redo())
+
+    def _notepad_save(self) -> None:
+        """Save notepad content to a file via dialog."""
+        from tkinter import filedialog
+
+        path = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+            initialfile="notes.txt",
+        )
+        if not path:
+            return
+        content = self._notepad_text.get("1.0", "end-1c")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        self._notepad_file_path = path
+        self._notepad_status.configure(text=f"Saved: {path}")
+
+    def _notepad_open(self) -> None:
+        """Open a text file into the notepad."""
+        from tkinter import filedialog
+
+        path = filedialog.askopenfilename(
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self._notepad_text.delete("1.0", "end")
+        self._notepad_text.insert("1.0", content)
+        self._notepad_file_path = path
+        self._notepad_status.configure(text=f"Opened: {path}")
+
+    def _notepad_clear(self) -> None:
+        """Clear the notepad."""
+        self._notepad_text.delete("1.0", "end")
+        self._notepad_text.edit_reset()
+        self._notepad_text.edit_modified(False)
+        self._notepad_file_path = None
+        self._notepad_status.configure(text="Cleared")
+
+    def _notepad_undo(self) -> None:
+        """Undo the last edit in the notepad."""
+        try:
+            self._notepad_text.edit_undo()
+            self._notepad_status.configure(text="Undo")
+        except tk.TclError:
+            pass  # nothing to undo
+
+    def _notepad_redo(self) -> None:
+        """Redo the last undone edit in the notepad."""
+        try:
+            self._notepad_text.edit_redo()
+            self._notepad_status.configure(text="Redo")
+        except tk.TclError:
+            pass  # nothing to redo
+
+    # ------------------------------------------------------------------ #
+    #  THEME TOGGLE                                                       #
+    # ------------------------------------------------------------------ #
+
+    def _toggle_theme(self) -> None:
+        """Switch between dark and light mode."""
+        self._is_dark = not self._is_dark
+        mode = "dark" if self._is_dark else "light"
+        ctk.set_appearance_mode(mode)
+        self._theme_btn.configure(
+            text="🌙 Dark" if self._is_dark else "☀️ Light",
+        )
+
+
+# ========================================================================
+#  ENTRY POINT
+# ========================================================================
 
 def main() -> None:
-    app = CalculatorApp()
+    app = EverythingApp()
     app.mainloop()
 
 
