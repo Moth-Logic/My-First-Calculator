@@ -12,26 +12,33 @@ el cambio vive aquí y en nada más.
 from dataclasses import dataclass
 from enum import Enum, auto
 
-
+# === Token Types ===
+# An Enum is a set of named constants. Each token type represents
+# what kind of thing the lexer found in the input string.
 class TokenType(Enum):
-    NUMBER = auto()
-    PLUS = auto()
-    MINUS = auto()
-    STAR = auto()
-    SLASH = auto()
-    LPAREN = auto()
-    RPAREN = auto()
-    FUNCTION = auto()  # sin, cos, tan, etc.
-    COMMA = auto()
-    CARET = auto()
-    PERCENT = auto()
-    EOF = auto()
+    NUMBER = auto()    # A numeric literal: 3, 3.14, 0.5, etc.
+    PLUS = auto()      # The + operator
+    MINUS = auto()     # The - operator
+    STAR = auto()      # The * operator
+    SLASH = auto()     # The / operator
+    LPAREN = auto()    # Opening parenthesis (
+    RPAREN = auto()    # Closing parenthesis )
+    FUNCTION = auto()  # A function name: sin, cos, tan, sqrt, etc.
+    COMMA = auto()     # The comma separator in function arguments
+    CARET = auto()     # The ^ operator (exponentiation)
+    PERCENT = auto()   # The % operator (modulo)
+    EOF = auto()       # End of input — no more characters to read
 
 
 @dataclass(frozen=True)
 class Token:
-    type: TokenType
-    value: float | None = None  # solo relevante para NUMBER
+    """A single token produced by the lexer.
+    
+    'frozen=True' makes the dataclass immutable — once created,
+    a Token can never be modified. This is a safety feature.
+    """
+    type: TokenType           # What kind of token this is (NUMBER, PLUS, etc.)
+    value: float | None = None  # The numeric value (only used for NUMBER tokens)
 
     def __repr__(self) -> str:
         if self.value is not None:
@@ -40,9 +47,11 @@ class Token:
 
 
 class LexerError(Exception):
-    """Se lanza cuando aparece un carácter que el lexer no reconoce."""
+    """Raised when the lexer encounters an unexpected character."""
 
 
+# Map of single characters to their token types.
+# This is how the lexer knows that '+' means TokenType.PLUS, etc.
 _SINGLE_CHAR_TOKENS = {
     "+": TokenType.PLUS,
     "-": TokenType.MINUS,
@@ -55,21 +64,19 @@ _SINGLE_CHAR_TOKENS = {
     "%": TokenType.PERCENT,
 }
 
-# Funciones científicas y constantes reconocidas por el lexer
+# Recognized function names (lowercase). When the lexer sees one of these,
+# it creates a FUNCTION token instead of raising an error.
 _SCIENTIFIC_FUNCTIONS = frozenset({
-    # Trigonométricas
-    "sin", "cos", "tan",
-    "asin", "acos", "atan",
-    # Hiperbólicas
-    "sinh", "cosh", "tanh",
-    # Potencia / raíz
-    "sqrt", "cbrt",
-    # Logaritmos
-    "log", "ln",
-    # Otros
-    "abs", "exp", "ceil", "floor", "round",
+    "sin", "cos", "tan",           # Trigonometric (degrees input)
+    "asin", "acos", "atan",        # Inverse trig
+    "sinh", "cosh", "tanh",        # Hyperbolic
+    "sqrt", "cbrt",                 # Roots
+    "log", "ln",                    # Logarithms
+    "abs", "exp", "ceil", "floor", "round",  # Other math functions
 })
 
+# Recognized constant names. When the lexer sees 'pi' or 'e',
+# it creates a NUMBER token with the constant's value.
 _SCIENTIFIC_CONSTANTS = {
     "pi": 3.141592653589793,
     "e": 2.718281828459045,
@@ -77,70 +84,100 @@ _SCIENTIFIC_CONSTANTS = {
 
 
 class Lexer:
+    """Converts a raw string expression into a list of Tokens.
+    
+    The lexer scans the input character by character and produces tokens.
+    It handles: numbers (integers and decimals), operators (+-*/^%),
+    parentheses, function names (sin, cos...), and constants (pi, e).
+    
+    Usage: tokens = Lexer("3 + sin(45)").tokenize()
+    """
+
     def __init__(self, source: str) -> None:
-        self._source = source
-        self._pos = 0
-        self._length = len(source)
+        self._source = source      # The input string to tokenize
+        self._pos = 0             # Current position in the string
+        self._length = len(source) # Total length (cached for speed)
 
     def tokenize(self) -> list[Token]:
+        """Scan the entire input and return a list of tokens.
+        
+        The last token is always EOF (End Of File), which tells the parser
+        that there's nothing left to read.
+        """
         tokens: list[Token] = []
         while self._pos < self._length:
             char = self._source[self._pos]
 
+            # Skip whitespace (spaces, tabs, newlines)
             if char.isspace():
                 self._pos += 1
                 continue
 
+            # If it starts with a digit or dot, it's a number
             if char.isdigit() or char == ".":
                 tokens.append(self._read_number())
                 continue
 
+            # If it starts with a letter or underscore, it's an identifier
+            # (could be a function like 'sin' or a constant like 'pi')
             if char.isalpha() or char == "_":
                 tokens.append(self._read_identifier())
                 continue
 
+            # If it's a known single character (operator, parenthesis, etc.)
             if char in _SINGLE_CHAR_TOKENS:
                 tokens.append(Token(_SINGLE_CHAR_TOKENS[char]))
                 self._pos += 1
                 continue
 
+            # If we get here, the character is not recognized
             raise LexerError(f"Carácter inesperado '{char}' en la posición {self._pos}")
 
-        tokens.append(Token(TokenType.EOF))
+        tokens.append(Token(TokenType.EOF))  # Always end with EOF
         return tokens
 
     def _read_identifier(self) -> Token:
-        """Lee un identificador: puede ser una función (sin, cos...) o una
-        constante (pi, e). El tipo de token resultante depende del nombre."""
+        """Read a name (letters, digits, underscores) and determine if it's
+        a recognized function (sin, cos...) or constant (pi, e).
+        If it's neither, raise an error."""
         start = self._pos
+        # Keep reading while we have alphanumeric characters or underscores
         while self._pos < self._length and (
             self._source[self._pos].isalnum() or self._source[self._pos] == "_"
         ):
             self._pos += 1
-        name = self._source[start:self._pos]
-        name_lower = name.lower()
+        name = self._source[start:self._pos]  # Extract the full name
+        name_lower = name.lower()  # Case-insensitive matching
 
+        # Check if it's a recognized function name
         if name_lower in _SCIENTIFIC_FUNCTIONS:
             return Token(TokenType.FUNCTION, name_lower)
 
+        # Check if it's a recognized constant (pi, e)
         if name_lower in _SCIENTIFIC_CONSTANTS:
             return Token(TokenType.NUMBER, _SCIENTIFIC_CONSTANTS[name_lower])
 
+        # Not a recognized name — this is an error
         raise LexerError(f"Identificador desconocido '{name}' en la posición {start}")
 
     def _read_number(self) -> Token:
+        """Read a numeric literal (integer or decimal) from the input.
+        
+        Handles: 42, 3.14, .5, etc.
+        Tracks whether we've seen a dot to prevent '3.14.5' (only one dot allowed).
+        """
         start = self._pos
-        seen_dot = False
+        seen_dot = False  # Have we already seen a decimal point?
 
         while self._pos < self._length:
             char = self._source[self._pos]
             if char.isdigit():
                 self._pos += 1
             elif char == "." and not seen_dot:
-                seen_dot = True
+                seen_dot = True  # First dot found — this is a decimal number
                 self._pos += 1
             else:
-                break
+                break  # Not part of the number anymore
 
-        raw = self._source[start:self._pos]
-        return Token(TokenType.NUMBER, float(raw))
+        raw = self._source[start:self._pos]  # Extract the number string
+        return Token(TokenType.NUMBER, float(raw))  # Convert to float

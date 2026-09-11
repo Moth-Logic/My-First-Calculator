@@ -16,67 +16,79 @@ from typing import ClassVar
 from .lexer import TokenType
 from .parser import ASTNode, BinaryOp, FunctionCall, Number, UnaryOp
 
-# Intentar importar el backend C++
+# === C++ Backend (optional performance optimization) ===
+# If the C++ extension module is compiled, we use it for faster evaluation.
+# If not, we fall back to pure Python (graceful degradation).
 try:
     from ._evaluator_cpp import evaluate as _cpp_evaluate
-    _HAS_CPP = True
+    _HAS_CPP = True  # C++ backend available — use it!
 except ImportError:
-    _HAS_CPP = False
+    _HAS_CPP = False  # No C++ module — use pure Python instead
 
 
 class EvaluationError(Exception):
-    """División por cero, nodo desconocido, etc."""
+    """Raised when evaluation fails (division by zero, unknown node, etc.)."""
 
 
 class Evaluator:
-    # Mapa de funciones científicas: nombre -> callable(float) -> float
+    # Map of function names to their Python implementations.
+    # These are called when the evaluator encounters a FunctionCall node.
+    # Note: trig functions input degrees (not radians) — we convert internally.
     _FUNCTIONS: ClassVar[dict[str, callable]] = {
-        # Trigonométricas (input en grados)
+        # Trigonometric functions (input in degrees, converted to radians internally)
         "sin": lambda x: math.sin(math.radians(x)),
         "cos": lambda x: math.cos(math.radians(x)),
         "tan": lambda x: math.tan(math.radians(x)),
         "asin": lambda x: math.degrees(math.asin(x)),
         "acos": lambda x: math.degrees(math.acos(x)),
         "atan": lambda x: math.degrees(math.atan(x)),
-        # Hiperbólicas
+        # Hyperbolic functions (input in radians)
         "sinh": math.sinh,
         "cosh": math.cosh,
         "tanh": math.tanh,
-        # Potencia / raíz
+        # Power and roots
         "sqrt": math.sqrt,
-        "cbrt": lambda x: math.copysign(abs(x) ** (1 / 3), x),
+        "cbrt": lambda x: math.copysign(abs(x) ** (1 / 3), x),  # Preserves sign for negatives
         "exp": math.exp,
-        # Logaritmos
+        # Logarithms
         "log": math.log10,   # log base 10
-        "ln": math.log,     # logaritmo natural
-        # Redondeo
+        "ln": math.log,      # natural log (base e)
+        # Rounding
         "ceil": math.ceil,
         "floor": math.floor,
         "round": round,
-        # Otros
+        # Other
         "abs": abs,
     }
 
     def evaluate(self, node: ASTNode) -> float:
-        # Usar el backend C++ si está disponible
+        """Walk the AST recursively and compute the final numeric result.
+        
+        Each node type has its own handling:
+        - Number: just return its value
+        - UnaryOp: negate the operand (for -5, +3, etc.)
+        - BinaryOp: evaluate both sides and apply the operator
+        - FunctionCall: evaluate the argument, then apply the function
+        """
+        # Use the C++ backend if available (much faster for complex expressions)
         if _HAS_CPP:
             try:
                 return _cpp_evaluate(node)
             except ValueError as exc:
                 raise EvaluationError(str(exc)) from exc
 
-        # Fallback: evaluador puro en Python
+        # === Pure Python fallback ===
         if isinstance(node, Number):
-            return node.value
+            return node.value  # Base case: numbers just return their value
 
         if isinstance(node, UnaryOp):
-            value = self.evaluate(node.operand)
+            value = self.evaluate(node.operand)  # Recursively evaluate the operand
             return -value if node.operator == TokenType.MINUS else value
 
         if isinstance(node, BinaryOp):
-            left = self.evaluate(node.left)
-            right = self.evaluate(node.right)
-            return self._apply(node.operator, left, right)
+            left = self.evaluate(node.left)    # Evaluate the left side
+            right = self.evaluate(node.right)  # Evaluate the right side
+            return self._apply(node.operator, left, right)  # Apply the operator
 
         if isinstance(node, FunctionCall):
             return self._apply_function(node.name, node.argument)
@@ -84,7 +96,11 @@ class Evaluator:
         raise EvaluationError(f"Nodo AST desconocido: {node!r}")
 
     def _apply_function(self, name: str, argument: ASTNode) -> float:
-        """Evalúa una función científica sobre un nodo AST."""
+        """Evaluate a scientific function on an AST node.
+        
+        Looks up the function name in the _FUNCTIONS map, evaluates
+        the argument, and applies the function. Handles errors gracefully.
+        """
         value = self.evaluate(argument)
         func = self._FUNCTIONS.get(name)
         if func is None:
@@ -99,6 +115,11 @@ class Evaluator:
 
     @staticmethod
     def _apply(operator: TokenType, left: float, right: float) -> float:
+        """Apply a binary operator to two numbers and return the result.
+        
+        Handles: +, -, *, /, ^ (power), % (modulo).
+        Raises EvaluationError for division by zero or unknown operators.
+        """
         if operator == TokenType.PLUS:
             return left + right
         if operator == TokenType.MINUS:
@@ -113,7 +134,7 @@ class Evaluator:
             try:
                 result = left ** right
             except OverflowError:
-                raise EvaluationError("Resultado demasiado grande")
+                raise EvaluationError("Resultado demasiado grande")  # e.g., 999^999
             return result
         if operator == TokenType.PERCENT:
             if right == 0:
