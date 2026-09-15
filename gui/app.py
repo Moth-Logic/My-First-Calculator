@@ -11,9 +11,7 @@ Each tab builds its own widgets inside the CTkTabview page.
 """
 
 from __future__ import annotations
-
 import tkinter as tk
-
 import customtkinter as ctk
 
 from core import (
